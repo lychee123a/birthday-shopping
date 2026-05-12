@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>K1 English Assessment V5</title>
+    <style>
+        :root { --primary: #FF6B6B; --secondary: #4ECDC4; --bg: #F0F7F4; }
+        body { font-family: 'Chalkboard SE', 'Comic Sans MS', sans-serif; background: var(--bg); text-align: center; padding: 15px; margin: 0; }
+        .header { background: white; padding: 15px; border-radius: 20px; box-shadow: 0 4px 10px rgba(0,0,0,0.05); margin-bottom: 15px; }
+        select { font-size: 1.2rem; padding: 10px; border-radius: 12px; border: 3px solid var(--secondary); outline: none; background: white; }
+        
+        /* 圖片網格 */
+        .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 15px; max-width: 700px; margin: 0 auto; padding: 10px; }
+        .card { background: white; border: 6px solid #fff; border-radius: 25px; padding: 10px; cursor: pointer; transition: 0.3s; box-shadow: 0 6px 12px rgba(0,0,0,0.1); position: relative; }
+        .card.selected { border-color: var(--primary); transform: scale(1.05); }
+        .card img { width: 100%; border-radius: 15px; aspect-ratio: 1/1; object-fit: contain; }
+        .card-label { display: block; font-weight: bold; margin-top: 8px; font-size: 1.1rem; }
+
+        .sentence-box { background: #FFF3B0; padding: 15px; border-radius: 20px; margin: 15px auto; max-width: 500px; border: 3px dashed #FF9F43; min-height: 60px; font-size: 1.4rem; }
+        .sentence-box b { color: #E74C3C; font-size: 1.6rem; }
+
+        .btn { border: none; padding: 18px 45px; border-radius: 50px; font-size: 1.4rem; font-weight: bold; cursor: pointer; color: white; margin: 10px 0; }
+        .btn-start { background: #FF6B6B; box-shadow: 0 6px #C0392B; }
+        .btn-stop { background: #45aaf2; box-shadow: 0 6px #2d98da; display: none; }
+
+        #status { font-size: 1.4rem; font-weight: bold; margin: 10px 0; height: 30px; }
+        .result { background: white; border-radius: 25px; padding: 20px; display: none; width: 90%; max-width: 450px; margin: 15px auto; box-shadow: 0 10px 20px rgba(0,0,0,0.05); }
+        .stars { font-size: 4rem; color: #FFD700; text-shadow: 2px 2px #E67E22; }
+    </style>
+</head>
+<body>
+
+    <div class="header">
+        <label>Student ID: </label>
+        <select id="sid">
+            <script>for(let i=1;i<=26;i++) document.write(`<option value="No.${i.toString().padStart(2,'0')}">No.${i.toString().padStart(2,'0')}</option>`);</script>
+        </select>
+    </div>
+
+    <div class="sentence-box" id="sBox">Click a picture to start!</div>
+
+    <div class="grid">
+        <div class="card" onclick="sel(this, 'red', 'car')">
+            <img src="car_red.png">
+            <span class="card-label">Red Car</span>
+        </div>
+        <div class="card" onclick="sel(this, 'blue', 'ball')">
+            <img src="ball_blue.jpg">
+            <span class="card-label">Blue Ball</span>
+        </div>
+        <div class="card" onclick="sel(this, 'red', 'ball')">
+            <img src="ball_red.jpg">
+            <span class="card-label">Red Ball</span>
+        </div>
+        <div class="card" onclick="sel(this, 'green', 'ball')">
+            <img src="ball_green.jpg">
+            <span class="card-label">Green Ball</span>
+        </div>
+        <div class="card" onclick="sel(this, 'yellow', 'ball')">
+            <img src="ball_yellow.jpg">
+            <span class="card-label">Yellow Ball</span>
+        </div>
+    </div>
+
+    <div id="status">Select an item!</div>
+
+    <button id="btnS" class="btn btn-start" onclick="go()">🔴 Start</button>
+    <button id="btnE" class="btn btn-stop" onclick="stop()">⏹️ Stop</button>
+
+    <div id="res" class="result">
+        <div id="star" class="stars"></div>
+        <div id="tx" style="color:#7f8c8d; font-style:italic; margin:10px 0;"></div>
+        <audio id="player" controls playsinline style="width:100%"></audio>
+    </div>
+
+<script>
+    let cCol="", cObj="", rec, mRec, chunks=[], logs=[], speechText="";
+
+    const API = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if(API) {
+        rec = new API(); rec.lang='en-US'; rec.continuous=true; rec.interimResults=true;
+        rec.onresult = (e) => { 
+            let t = ""; for(let i=0; i<e.results.length; i++) t += e.results[i][0].transcript;
+            speechText = t;
+        };
+    }
+
+    function sel(el, c, o) {
+        document.querySelectorAll('.card').forEach(x => x.classList.remove('selected'));
+        el.classList.add('selected');
+        cCol=c; cObj=o;
+        document.getElementById('sBox').innerHTML = `Say: "May I have the <b>${c} ${o}</b>, please?"`;
+        document.getElementById('status').innerText = "Ready!";
+    }
+
+    async function go() {
+        if(!cCol) return alert("Pick a picture!");
+        speechText = ""; chunks = [];
+        document.getElementById('btnS').style.display='none';
+        document.getElementById('btnE').style.display='inline-block';
+        document.getElementById('res').style.display='none';
+        document.getElementById('status').innerText = "Recording... 🎤";
+
+        try {
+            const s = await navigator.mediaDevices.getUserMedia({audio:true});
+            const type = MediaRecorder.isTypeSupported('audio/mp4') ? 'audio/mp4' : 'audio/webm';
+            mRec = new MediaRecorder(s, {mimeType:type});
+            mRec.ondataavailable = e => chunks.push(e.data);
+            mRec.onstop = () => {
+                document.getElementById('player').src = URL.createObjectURL(new Blob(chunks, {type}));
+            };
+            mRec.start(); if(rec) rec.start();
+        } catch(e) { alert("Mic error!"); }
+    }
+
+    function stop() {
+        document.getElementById('btnS').style.display='inline-block';
+        document.getElementById('btnE').style.display='none';
+        if(mRec) mRec.stop();
+        if(rec) { 
+            setTimeout(() => { 
+                rec.stop(); 
+                setTimeout(() => {
+                    let txt = speechText.toLowerCase();
+                    let s1 = txt.includes(cCol)?1:0, s2 = txt.includes(cObj)?1:0;
+                    let s3 = (txt.includes("may i")||txt.includes("please"))?1:0;
+                    let score = s1+s2+s3;
+                    document.getElementById('res').style.display='block';
+                    document.getElementById('star').innerHTML = "⭐".repeat(score) + "▫️".repeat(3-score);
+                    document.getElementById('tx').innerText = `Heard: "${txt || '(No speech)'}"`;
+                    document.getElementById('status').innerText = "Done!";
+                }, 500);
+            }, 300);
+        }
+    }
+</script>
+</body>
+</html>
